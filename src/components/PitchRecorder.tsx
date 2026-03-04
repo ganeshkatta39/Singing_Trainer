@@ -3,145 +3,153 @@ import RecorderControls from "./RecorderControls";
 import WaveformCanvas from "./WaveformCanvas";
 import AudioPlayer from "./AudioPlayer";
 import { startAudioProcessing } from "../utils/audioVisualizer";
-
+import PitchTimelineCanvas from "./PitchTimelineCanvas";
+import PitchNoteTimeline from "./PitchNoteTimeline";
+import type { PitchTimelineHandle } from "./PitchNoteTimeline";
 const PitchRecorder: React.FC = () => {
-  const [isRecording, setIsRecording] = useState(false);
-  const [audioURL, setAudioURL] = useState<string | null>(null);
-  const [note, setNote] = useState<string>("--");
-  const isDetectingRef = useRef(false);
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const audioChunksRef = useRef<Blob[]>([]);
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-  const animationRef = useRef<number | null>(null);
-  const playbackAudioContextRef = useRef<AudioContext | null>(null);
-  const playbackAnalyserRef = useRef<AnalyserNode | null>(null);
-  const playbackSourceRef = useRef<MediaElementAudioSourceNode | null>(null);
+	const [isRecording, setIsRecording] = useState(false);
+	const [audioURL, setAudioURL] = useState<string | null>(null);
+	const [note, setNote] = useState<string>("--");
+	const isDetectingRef = useRef(false);
+	const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+	const audioChunksRef = useRef<Blob[]>([]);
+	const canvasRef = useRef<HTMLCanvasElement | null>(null);
+	const audioRef = useRef<HTMLAudioElement | null>(null);
+	const animationRef = useRef<number | null>(null);
+	const playbackAudioContextRef = useRef<AudioContext | null>(null);
+	const playbackAnalyserRef = useRef<AnalyserNode | null>(null);
+	const playbackSourceRef = useRef<MediaElementAudioSourceNode | null>(null);
+	const pitchTimelineRef = useRef<PitchTimelineHandle | null>(null);
 
-  const startRecording = async () => {
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    isDetectingRef.current = true;
-    const mediaRecorder = new MediaRecorder(stream);
-    mediaRecorderRef.current = mediaRecorder;
-    audioChunksRef.current = [];
+	const startRecording = async () => {
+		const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+		isDetectingRef.current = true;
+		const mediaRecorder = new MediaRecorder(stream);
+		mediaRecorderRef.current = mediaRecorder;
+		audioChunksRef.current = [];
 
-    mediaRecorder.ondataavailable = (event: BlobEvent) => {
-      audioChunksRef.current.push(event.data);
-    };
+		mediaRecorder.ondataavailable = (event: BlobEvent) => {
+			audioChunksRef.current.push(event.data);
+		};
 
-    mediaRecorder.onstop = () => {
-      const blob = new Blob(audioChunksRef.current, { type: "audio/webm" });
-      const url = URL.createObjectURL(blob);
-      setAudioURL(url);
-    };
+		mediaRecorder.onstop = () => {
+			const blob = new Blob(audioChunksRef.current, { type: "audio/webm" });
+			const url = URL.createObjectURL(blob);
+			setAudioURL(url);
+		};
 
-    mediaRecorder.start();
+		mediaRecorder.start();
 
-    const audioContext = new AudioContext();
-    const source = audioContext.createMediaStreamSource(stream);
-    const analyser = audioContext.createAnalyser();
+		const audioContext = new AudioContext();
+		const source = audioContext.createMediaStreamSource(stream);
+		const analyser = audioContext.createAnalyser();
 
-    analyser.fftSize = 2048;
-    source.connect(analyser);
-  
-    const canvas = canvasRef.current;
-    if (canvas) {
-      startAudioProcessing(
-        analyser,
-        canvas,
-        audioContext.sampleRate,
-        setNote,
-        animationRef,
-        isDetectingRef,
-      );
-    }
-    setIsRecording(true);
-  };
+		analyser.fftSize = 2048;
+		source.connect(analyser);
 
-  const stopRecording = () => {
-    mediaRecorderRef.current?.stop();
+		const canvas = canvasRef.current;
+		if (canvas) {
+			startAudioProcessing(
+				analyser,
+				canvas,
+				audioContext.sampleRate,
+				setNote,
+				animationRef,
+				isDetectingRef,
+				pitchTimelineRef,
+			);
+		}
+		setIsRecording(true);
+	};
 
-    isDetectingRef.current = false;
+	const stopRecording = () => {
+		mediaRecorderRef.current?.stop();
 
-    if (animationRef.current) {
-      cancelAnimationFrame(animationRef.current);
-      animationRef.current = null;
-    }
+		isDetectingRef.current = false;
 
-    setNote("--");
-    setIsRecording(false);
-  };
+		if (animationRef.current) {
+			cancelAnimationFrame(animationRef.current);
+			animationRef.current = null;
+		}
 
-  const startPlaybackAnalysis = () => {
-    if (!audioRef.current) return;
+		setNote("--");
+		setIsRecording(false);
+	};
 
-    isDetectingRef.current = true;
+	const startPlaybackAnalysis = () => {
+		if (!audioRef.current) return;
 
-    if (!playbackAudioContextRef.current) {
-      const audioContext = new AudioContext();
-      playbackAudioContextRef.current = audioContext;
+		isDetectingRef.current = true;
 
-      const analyser = audioContext.createAnalyser();
-      analyser.fftSize = 2048;
-      playbackAnalyserRef.current = analyser;
+		if (!playbackAudioContextRef.current) {
+			const audioContext = new AudioContext();
+			playbackAudioContextRef.current = audioContext;
 
-      const source = audioContext.createMediaElementSource(audioRef.current);
-      playbackSourceRef.current = source;
+			const analyser = audioContext.createAnalyser();
+			analyser.fftSize = 2048;
+			playbackAnalyserRef.current = analyser;
 
-      source.connect(analyser);
-      analyser.connect(audioContext.destination);
-    }
+			const source = audioContext.createMediaElementSource(audioRef.current);
+			playbackSourceRef.current = source;
 
-    const analyser = playbackAnalyserRef.current;
-    const canvas = canvasRef.current;
+			source.connect(analyser);
+			analyser.connect(audioContext.destination);
+		}
 
-    if (analyser && canvas) {
-      startAudioProcessing(
-        analyser,
-        canvas,
-        playbackAudioContextRef.current!.sampleRate,
-        setNote,
-        animationRef,
-        isDetectingRef,
-      );
-    }
-  };
+		const analyser = playbackAnalyserRef.current;
+		const canvas = canvasRef.current;
 
-  const stop_detection = () => {
-    isDetectingRef.current = false;
+		if (analyser && canvas) {
+			startAudioProcessing(
+				analyser,
+				canvas,
+				playbackAudioContextRef.current!.sampleRate,
+				setNote,
+				animationRef,
+				isDetectingRef,
+				pitchTimelineRef,
+			);
+		}
+	};
 
-    if (animationRef.current) {
-      cancelAnimationFrame(animationRef.current);
-      animationRef.current = null;
-    }
+	const stop_detection = () => {
+		isDetectingRef.current = false;
 
-    setNote("--");
-  };
+		if (animationRef.current) {
+			cancelAnimationFrame(animationRef.current);
+			animationRef.current = null;
+		}
 
-  return (
-    <div style={{ padding: 20 }}>
-      <h2>🎤 Pitch Detection Recorder</h2>
+		setNote("--");
+	};
 
-      <RecorderControls
-        isRecording={isRecording}
-        startRecording={startRecording}
-        stopRecording={stopRecording}
-      />
+	return (
+		<div style={{ padding: 20 }}>
+			<h2>🎤 Pitch Detection Recorder</h2>
 
-      <WaveformCanvas canvasRef={canvasRef} />
+			<RecorderControls
+				isRecording={isRecording}
+				startRecording={startRecording}
+				stopRecording={stopRecording}
+			/>
 
-      <h2>Note: {note}</h2>
+			<WaveformCanvas canvasRef={canvasRef} />
 
-      {audioURL && (
-        <AudioPlayer
-          audioURL={audioURL}
-          audioRef={audioRef}
-          onPlay={startPlaybackAnalysis}
-          onEnded={stop_detection}
-        />
-      )}
-    </div>
-  );
+			<PitchTimelineCanvas />
+			<PitchNoteTimeline ref={pitchTimelineRef} />
+
+			<h2>Note: {note}</h2>
+
+			{audioURL && (
+				<AudioPlayer
+					audioURL={audioURL}
+					audioRef={audioRef}
+					onPlay={startPlaybackAnalysis}
+					onEnded={stop_detection}
+				/>
+			)}
+		</div>
+	);
 };
 
 export default PitchRecorder;

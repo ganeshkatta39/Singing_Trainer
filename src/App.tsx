@@ -4,7 +4,7 @@ import PitchRecorder from "./components/PitchRecorder";
 function App() {
   return (
     <>
-      <PitchRecorder />
+        <PitchRecorder />
     </>
   );
 }
