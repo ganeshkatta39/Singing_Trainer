@@ -6,6 +6,9 @@ import { startAudioProcessing } from "../utils/audioVisualizer";
 import PitchTimelineCanvas from "./PitchTimelineCanvas";
 import PitchNoteTimeline from "./PitchNoteTimeline";
 import type { PitchTimelineHandle } from "./PitchNoteTimeline";
+import PitchRibbonTimeline from "./PitchRibbonTimeline";
+import type { PitchRibbonHandle } from "./PitchRibbonTimeline";
+
 const PitchRecorder: React.FC = () => {
 	const [isRecording, setIsRecording] = useState(false);
 	const [audioURL, setAudioURL] = useState<string | null>(null);
@@ -20,6 +23,7 @@ const PitchRecorder: React.FC = () => {
 	const playbackAnalyserRef = useRef<AnalyserNode | null>(null);
 	const playbackSourceRef = useRef<MediaElementAudioSourceNode | null>(null);
 	const pitchTimelineRef = useRef<PitchTimelineHandle | null>(null);
+	const [snapToNote, setSnapToNote] = useState(false);
 
 	const startRecording = async () => {
 		const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -136,7 +140,14 @@ const PitchRecorder: React.FC = () => {
 			<WaveformCanvas canvasRef={canvasRef} />
 
 			<PitchTimelineCanvas />
-			<PitchNoteTimeline ref={pitchTimelineRef} />
+			{/* <PitchNoteTimeline ref={pitchTimelineRef} /> */}
+			<button
+				onClick={() => setSnapToNote((v) => !v)}
+				style={{ marginBottom: 10 }}
+			>
+				{snapToNote ? "Disable Note Snap" : "Enable Note Snap"}
+			</button>
+			<PitchRibbonTimeline ref={pitchTimelineRef} snapToNote={snapToNote} />
 
 			<h2>Note: {note}</h2>
 
