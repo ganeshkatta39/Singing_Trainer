@@ -83,62 +83,83 @@ const PitchRibbonTimeline = forwardRef<PitchRibbonHandle, Props>(
 			const width = canvas.width;
 			const height = canvas.height;
 			const rowHeight = height / NOTES.length;
-			const scrollSpeed = canvas.width / (WINDOW_SECONDS * 60);
-
-			let prevY: number | null = null;
 
 			const draw = () => {
 				const now = performance.now() / 1000;
 
-				const scroll = scrollSpeed;
-
-				// shift existing graph left
-				ctx.drawImage(
-					canvas,
-					scroll,
-					0,
-					canvas.width - scroll,
-					canvas.height,
-					0,
-					0,
-					canvas.width - scroll,
-					canvas.height,
-				);
-
-				// clear right edge
 				ctx.fillStyle = "black";
-				ctx.fillRect(canvas.width - scroll, 0, scroll, canvas.height);
+				ctx.fillRect(0, 0, width, height);
 
-				// newest pitch point
-				const latest = bufferRef.current[bufferRef.current.length - 1];
+				ctx.strokeStyle = "#333";
+				ctx.fillStyle = "#aaa";
+				ctx.font = "12px monospace";
 
-				if (latest && latest.midi !== -1) {
+				NOTES.forEach((note, i) => {
+					const y = i * rowHeight;
+
+					ctx.beginPath();
+					ctx.moveTo(0, y);
+					ctx.lineTo(width, y);
+					ctx.stroke();
+
+					ctx.fillText(note, 5, y + rowHeight - 4);
+				});
+
+				let latestX = 0;
+				let latestY = 0;
+
+				let prevX: number | undefined;
+				let prevY: number | undefined;
+
+				bufferRef.current.forEach((point) => {
+					const age = now - point.time;
+					if (age > WINDOW_SECONDS) return;
+
+					const x = ((WINDOW_SECONDS - age) / WINDOW_SECONDS) * width;
+
+					if (point.midi === -1) {
+						prevX = undefined;
+						prevY = undefined;
+						return;
+					}
+
 					const noteTop = 84;
 					const noteBottom = 48;
 
-					const norm = (latest.midi - noteBottom) / (noteTop - noteBottom);
-					const y = canvas.height - norm * canvas.height;
+					const norm = (point.midi - noteBottom) / (noteTop - noteBottom);
+					const y = height - norm * height;
 
-					const x = canvas.width - scroll;
+					const alpha = 1 - age / WINDOW_SECONDS;
 
-					if (prevY !== null) {
-						ctx.strokeStyle = "#00f5ff";
-						ctx.lineWidth = 3;
+					ctx.strokeStyle = `rgba(0,245,255,${alpha})`;
+					ctx.lineWidth = 3;
 
+					if (prevX !== undefined) {
 						ctx.beginPath();
-						ctx.moveTo(x - scroll, prevY);
+						ctx.moveTo(prevX, prevY!);
 						ctx.lineTo(x, y);
 						ctx.stroke();
 					}
 
+					prevX = x;
 					prevY = y;
 
-					// white current pitch ball
+					latestX = x;
+					latestY = y;
+				});
+
+				// white current pitch ball
+				if (latestX !== 0) {
 					ctx.fillStyle = "white";
+
 					ctx.beginPath();
-					ctx.arc(x, y, 6, 0, Math.PI * 2);
+					ctx.arc(latestX, latestY, 6, 0, Math.PI * 2);
 					ctx.fill();
 				}
+
+				bufferRef.current = bufferRef.current.filter(
+					(p) => now - p.time < WINDOW_SECONDS,
+				);
 
 				requestAnimationFrame(draw);
 			};
